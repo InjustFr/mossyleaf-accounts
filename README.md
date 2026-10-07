@@ -83,7 +83,9 @@ Logout (RP-initiated): redirect the browser to `/application/o/<slug>/end-sessio
 
 ## Branding
 
-`branding.css` maps the mossyleaf tokens (accent `#5b7f3a` on `#f5f5f3`, white surfaces, thin borders, 0.5rem radius, Patua One for titles, Inter for text) onto Authentik's PatternFly variables. Authentik injects the brand CSS into the page and into every web component, so plain selectors such as `.pf-c-login__main` work. The theme is pinned to light. `logo.svg` is a hand-drawn leaf with the wordmark converted to outlines from Patua One; `favicon.svg` is the leaf; `background.svg` is a hand-built blur of greens with leaf silhouettes.
+`branding.css` maps the mossyleaf tokens (accent `#5b7f3a`, paper `#f7f8f1` sheet on a `#1e2f17` moss ground, Patua One for titles, Inter for text) onto Authentik's PatternFly variables: the form is a herbarium sheet held by two strips of tape, centered on the page. Authentik injects the brand CSS into the page and into every web component, so plain selectors such as `.pf-c-login__main` work; rules that compete with Authentik's own scoped rules use `:not(#_)` to win on specificity. The theme is pinned to light. `logo.svg` is a hand-drawn leaf with the wordmark converted to outlines from Patua One; `favicon.svg` is the leaf; `background.svg` is a moss-green glow with pressed leaf and fern silhouettes.
+
+The sign-in, recovery and password-change flows run in Authentik's compatibility mode (light DOM instead of shadow DOM) so password managers can fill and save the username and password fields.
 
 ### Third-party assets
 
