@@ -2,7 +2,7 @@
 
 This folder plus `blueprints/`, `templates/`, `branding/` and `scripts/` is all a server needs: `compose.yaml` runs Authentik (server + worker, `ghcr.io/goauthentik/server`) and PostgreSQL 18. Everything Authentik needs (groups, OIDC providers and applications, flows, brand, emails) is declared in the blueprints and applied on start.
 
-On `user@server` it lives in `/path/to/mossyleaf-accounts`, behind the shared `nginx` container, at `https://accounts.mossyleaf.studio`.
+It runs in its own directory on the server (`DEPLOY_DIR`), behind a shared nginx container, at `https://accounts.mossyleaf.studio`.
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ make deploy-files
 On the server:
 
 ```bash
-cd /path/to/mossyleaf-accounts
+cd "$DEPLOY_DIR"
 cp .env.dist .env
 chmod 600 .env
 ```
@@ -31,6 +31,7 @@ Fill `.env`:
 | Variable | Value |
 |---|---|
 | `AUTHENTIK_TAG` | Authentik version to run (`2026.8.3`) |
+| `PROXY_NETWORK` | External Docker network of the nginx reverse proxy (`docker network ls`) |
 | `PG_PASS` | `openssl rand -base64 36 \| tr -d '\n'` |
 | `AUTHENTIK_SECRET_KEY` | `openssl rand -base64 60 \| tr -d '\n'` |
 | `AUTHENTIK_WEB__BASE_URL` | `https://accounts.mossyleaf.studio` |
@@ -62,16 +63,16 @@ Both `custom/mossyleaf-*.yaml` lines must say `successful`. `curl -s https://acc
 
 ## Reverse proxy
 
-The server container joins the external network `proxy-network` with the alias `mossyleaf-accounts` and publishes no port. Authentik needs `Host`, the `X-Forwarded-*` headers and WebSocket upgrades. The nginx container's address is in Authentik's default trusted proxy ranges (private networks), so the forwarded headers are honoured.
+The server container joins the external Docker network named by `PROXY_NETWORK` in `.env` (the one the nginx container is on) with the alias `mossyleaf-accounts` and publishes no port. Authentik needs `Host`, the `X-Forwarded-*` headers and WebSocket upgrades. The nginx container's address is in Authentik's default trusted proxy ranges (private networks), so the forwarded headers are honoured.
 
 1. Expand the shared certificate with the new name. List the current names, then rerun certbot the way it is usually run on the server with every existing `-d` plus the new one:
 
    ```bash
-   sudo certbot certificates
-   sudo certbot certonly --expand --cert-name example.org -d example.org -d <every other existing name> -d accounts.mossyleaf.studio
+   certbot certificates
+   certbot certonly --expand --cert-name <cert name> -d <every existing name> -d accounts.mossyleaf.studio
    ```
 
-2. Add to `the nginx configuration` (copy the `listen`/`ssl_*` lines of the `mossydew.mossyleaf.studio` block if they differ, including its port 80 redirect):
+2. Add to the nginx configuration (copy the `listen`/`ssl_*` lines of the `mossydew.mossyleaf.studio` block if they differ, including its port 80 redirect):
 
    ```nginx
    map $http_upgrade $mossyleaf_accounts_connection {
@@ -84,8 +85,8 @@ The server container joins the external network `proxy-network` with the alias `
        http2 on;
        server_name accounts.mossyleaf.studio;
 
-       ssl_certificate /etc/nginx/ssl/live/example.org/fullchain.pem;
-       ssl_certificate_key /etc/nginx/ssl/live/example.org/privkey.pem;
+       ssl_certificate /etc/nginx/ssl/live/<cert name>/fullchain.pem;
+       ssl_certificate_key /etc/nginx/ssl/live/<cert name>/privkey.pem;
 
        client_max_body_size 20m;
 
@@ -105,8 +106,8 @@ The server container joins the external network `proxy-network` with the alias `
 3. Check and reload:
 
    ```bash
-   docker exec nginx nginx -t
-   docker exec nginx nginx -s reload
+   docker exec <nginx container> nginx -t
+   docker exec <nginx container> nginx -s reload
    ```
 
 ## First admin
@@ -147,7 +148,7 @@ The state is the PostgreSQL database plus `data/` (uploaded media; small). The b
 
 ```bash
 docker compose exec -T postgresql pg_dump -U authentik -Fc authentik > accounts-$(date +%F).dump
-sudo tar czf accounts-data-$(date +%F).tgz data .env
+tar czf accounts-data-$(date +%F).tgz data .env
 ```
 
 Restore on a fresh install (same `.env`):
@@ -155,7 +156,7 @@ Restore on a fresh install (same `.env`):
 ```bash
 docker compose up -d postgresql
 docker compose exec -T postgresql pg_restore -U authentik -d authentik --clean --if-exists < accounts-YYYY-MM-DD.dump
-sudo tar xzf accounts-data-YYYY-MM-DD.tgz
+tar xzf accounts-data-YYYY-MM-DD.tgz
 docker compose up -d
 ```
 
@@ -164,7 +165,7 @@ docker compose up -d
 Read the release notes (`https://docs.goauthentik.io/releases/<year.month>/`) first; upgrade one minor version at a time (2026.8 → 2026.11 → …). Back up, then from a dev machine bump `AUTHENTIK_TAG` in `compose.yaml` and the server `.env` and run:
 
 ```bash
-make deploy      # defaults to DEPLOY_HOST=user@server DEPLOY_DIR=/path/to/mossyleaf-accounts REMOTE_DOCKER="docker"
+make deploy      # uses DEPLOY_HOST, DEPLOY_DIR and REMOTE_DOCKER from the root .env
 ```
 
 It copies the files, pulls the image and restarts the containers; migrations run on start. Migrations only move forward: rolling back means restoring the database dump taken before the update, then starting the previous `AUTHENTIK_TAG`.

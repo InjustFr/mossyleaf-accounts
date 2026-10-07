@@ -1,6 +1,8 @@
 DC = docker compose
-DEPLOY_HOST ?= user@server
-DEPLOY_DIR ?= /path/to/mossyleaf-accounts
+-include .env
+
+DEPLOY_HOST ?=
+DEPLOY_DIR ?=
 REMOTE_DOCKER ?= docker
 
 EMAIL ?=
@@ -44,6 +46,7 @@ shots: ## Screenshot the sign-in page at phone and desktop widths into shots/
 	$(SHOT) --viewport-size=1440,900 http://server:9000/if/flow/mossyleaf-authentication/ shots/login-desktop.png
 
 deploy-files: ## Copy compose, env template, blueprints, templates, branding and scripts to the server
+	@test -n "$(DEPLOY_HOST)" -a -n "$(DEPLOY_DIR)" || (echo "Set DEPLOY_HOST and DEPLOY_DIR (e.g. in .env)" && exit 1)
 	ssh $(DEPLOY_HOST) 'mkdir -p $(DEPLOY_DIR)'
 	rsync -a deploy/compose.yaml deploy/.env.dist deploy/README.md $(DEPLOY_HOST):$(DEPLOY_DIR)/
 	rsync -a --delete blueprints templates branding scripts $(DEPLOY_HOST):$(DEPLOY_DIR)/

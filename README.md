@@ -99,4 +99,10 @@ The sign-in, recovery and password-change flows run in Authentik's compatibility
 
 ## Server
 
-See [deploy/README.md](deploy/README.md): first install, `.env`, nginx block and certificate, first admin, invitations, new apps, backups, updates. `make deploy-files` / `make deploy` copy the files to `user@server:/path/to/mossyleaf-accounts`.
+See [deploy/README.md](deploy/README.md): first install, `.env`, nginx block and certificate, first admin, invitations, new apps, backups, updates. `make deploy-files` / `make deploy` copy the files to `$(DEPLOY_HOST):$(DEPLOY_DIR)`, set in a root `.env` (gitignored):
+
+```bash
+DEPLOY_HOST=user@server
+DEPLOY_DIR=/path/to/mossyleaf-accounts
+REMOTE_DOCKER=docker   # optional, default: docker
+```
