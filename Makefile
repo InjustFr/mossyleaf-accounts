@@ -15,7 +15,7 @@ INVITE_ENV = -e INVITE_EMAIL='$(EMAIL)' -e INVITE_NAME='$(NAME)' -e INVITE_GROUP
 
 SHOT = $(DC) run --rm --no-deps playwright npx -y playwright@1.63.0 screenshot --wait-for-timeout=4000
 
-.PHONY: up down logs ps apply invite shots deploy-files deploy
+.PHONY: up down logs ps apply check invite shots deploy-files deploy
 
 up: ## Start Authentik on http://localhost:9000 and Mailpit on http://localhost:8027
 	$(DC) up -d --wait
@@ -31,6 +31,9 @@ ps:
 
 apply: ## Re-apply the custom blueprints now (e.g. after editing branding/branding.css)
 	$(DC) exec -T worker ak apply_blueprint custom/mossyleaf-accounts.yaml custom/mossyleaf-apps.yaml
+
+check: ## Smoke test the running stack: blueprints applied, OpenID configurations, sign-in page, brand (CI runs it on a fresh stack)
+	./scripts/check.sh
 
 invite: ## make invite EMAIL=a@b.c NAME="Ada" [GROUPS="mossydew mossytrunk"] [REMOTE=1]
 	@test -n "$(EMAIL)" || (echo "EMAIL is required" && exit 1)
