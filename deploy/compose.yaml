@@ -1,0 +1,56 @@
+x-authentik: &authentik
+  image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8.3}
+  restart: unless-stopped
+  shm_size: 512mb
+  env_file: .env
+  depends_on:
+    postgresql:
+      condition: service_healthy
+  environment:
+    AUTHENTIK_POSTGRESQL__HOST: postgresql
+    AUTHENTIK_POSTGRESQL__NAME: authentik
+    AUTHENTIK_POSTGRESQL__USER: authentik
+    AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS:?PG_PASS is required}
+  volumes:
+    - ./data:/data
+    - ./blueprints:/blueprints/custom:ro
+    - ./templates:/templates:ro
+    - ./branding:/web/dist/custom:ro
+
+services:
+  postgresql:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD: ${PG_PASS:?PG_PASS is required}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"]
+      interval: 30s
+      start_period: 20s
+      start_interval: 2s
+    volumes:
+      - database:/var/lib/postgresql
+
+  server:
+    <<: *authentik
+    command: server
+    networks:
+      default:
+      proxy:
+        aliases:
+          - mossyleaf-accounts
+
+  worker:
+    <<: *authentik
+    command: worker
+    user: root
+
+volumes:
+  database:
+
+networks:
+  proxy:
+    name: proxy-network
+    external: true

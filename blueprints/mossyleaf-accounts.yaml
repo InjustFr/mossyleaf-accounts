@@ -1,0 +1,299 @@
+version: 1
+metadata:
+  name: mossyleaf - Accounts
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Invalidation flow
+      required: false
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - User settings flow
+      required: false
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - TOTP MFA setup flow
+      required: false
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - WebAuthn MFA setup flow
+      required: false
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Static MFA setup flow
+      required: false
+
+  - model: authentik_policies_password.passwordpolicy
+    id: password-policy
+    identifiers:
+      name: mossyleaf-password-policy
+    attrs:
+      password_field: password
+      length_min: 12
+      check_static_rules: true
+      check_zxcvbn: false
+      check_have_i_been_pwned: false
+      amount_digits: 0
+      amount_lowercase: 0
+      amount_uppercase: 0
+      amount_symbols: 0
+      error_message: Use at least 12 characters.
+
+  - model: authentik_stages_prompt.prompt
+    id: field-password
+    identifiers:
+      name: mossyleaf-field-password
+    attrs:
+      field_key: password
+      label: New password
+      type: password
+      required: true
+      placeholder: At least 12 characters
+      placeholder_expression: false
+      order: 0
+  - model: authentik_stages_prompt.prompt
+    id: field-password-repeat
+    identifiers:
+      name: mossyleaf-field-password-repeat
+    attrs:
+      field_key: password_repeat
+      label: Repeat the password
+      type: password
+      required: true
+      placeholder: Same password again
+      placeholder_expression: false
+      order: 1
+  - model: authentik_stages_prompt.promptstage
+    id: password-prompt
+    identifiers:
+      name: mossyleaf-password-prompt
+    attrs:
+      fields:
+        - !KeyOf field-password
+        - !KeyOf field-password-repeat
+      validation_policies:
+        - !KeyOf password-policy
+  - model: authentik_stages_user_write.userwritestage
+    id: user-write
+    identifiers:
+      name: mossyleaf-user-write
+    attrs:
+      user_creation_mode: never_create
+
+  - model: authentik_stages_user_login.userloginstage
+    id: user-login
+    identifiers:
+      name: mossyleaf-login
+    attrs:
+      session_duration: days=30
+      remember_me_offset: seconds=0
+
+  - model: authentik_flows.flow
+    id: password-change-flow
+    identifiers:
+      slug: mossyleaf-password-change
+    attrs:
+      name: mossyleaf - Change password
+      title: Change your password
+      designation: stage_configuration
+      authentication: require_authenticated
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf password-change-flow
+      stage: !KeyOf password-prompt
+      order: 10
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf password-change-flow
+      stage: !KeyOf user-write
+      order: 20
+
+  - model: authentik_stages_email.emailstage
+    id: recovery-email
+    identifiers:
+      name: mossyleaf-recovery-email
+    attrs:
+      use_global_settings: true
+      subject: Nouveau mot de passe mossyleaf · Reset your mossyleaf password
+      template: email/mossyleaf-password-reset.html
+      token_expiry: minutes=30
+      activate_user_on_success: true
+  - model: authentik_stages_email.emailstage
+    id: invitation-email
+    identifiers:
+      name: mossyleaf-invitation-email
+    attrs:
+      use_global_settings: true
+      subject: Votre compte mossyleaf · Your mossyleaf account
+      template: email/mossyleaf-invitation.html
+      token_expiry: days=7
+      activate_user_on_success: true
+
+  - model: authentik_stages_identification.identificationstage
+    id: recovery-identification
+    identifiers:
+      name: mossyleaf-recovery-identification
+    attrs:
+      user_fields:
+        - email
+      pretend_user_exists: true
+      show_matched_user: false
+  - model: authentik_policies_expression.expressionpolicy
+    id: recovery-unknown-user
+    identifiers:
+      name: mossyleaf-recovery-unknown-user
+    attrs:
+      expression: |
+        return not request.context.get("pending_user")
+  - model: authentik_flows.flow
+    id: recovery-flow
+    identifiers:
+      slug: mossyleaf-recovery
+    attrs:
+      name: mossyleaf - Recovery
+      title: Choose a new password
+      designation: recovery
+      authentication: require_unauthenticated
+  - model: authentik_flows.flowstagebinding
+    id: recovery-identification-binding
+    identifiers:
+      target: !KeyOf recovery-flow
+      stage: !KeyOf recovery-identification
+      order: 10
+    attrs:
+      evaluate_on_plan: true
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf recovery-flow
+      stage: !KeyOf recovery-email
+      order: 20
+    attrs:
+      evaluate_on_plan: true
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf recovery-flow
+      stage: !KeyOf password-prompt
+      order: 30
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf recovery-flow
+      stage: !KeyOf user-write
+      order: 40
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf recovery-flow
+      stage: !KeyOf user-login
+      order: 100
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf recovery-identification-binding
+      policy: !KeyOf recovery-unknown-user
+      order: 0
+
+  - model: authentik_stages_password.passwordstage
+    id: password
+    identifiers:
+      name: account-password
+    attrs:
+      backends:
+        - authentik.core.auth.InbuiltBackend
+        - authentik.core.auth.TokenBackend
+      configure_flow: !KeyOf password-change-flow
+      failed_attempts_before_cancel: 5
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    id: mfa
+    identifiers:
+      name: mossyleaf-mfa
+    attrs:
+      device_classes:
+        - static
+        - totp
+        - webauthn
+      not_configured_action: skip
+      webauthn_user_verification: preferred
+  - model: authentik_stages_identification.identificationstage
+    id: identification
+    identifiers:
+      name: mossyleaf-identification
+    attrs:
+      user_fields:
+        - email
+        - username
+      password_stage: !KeyOf password
+      webauthn_stage: !KeyOf mfa
+      recovery_flow: !KeyOf recovery-flow
+      enrollment_flow: null
+      pretend_user_exists: true
+      show_matched_user: false
+      case_insensitive_matching: true
+  - model: authentik_policies_expression.expressionpolicy
+    id: mfa-skip-after-passkey
+    identifiers:
+      name: mossyleaf-mfa-skip-after-passkey
+    attrs:
+      expression: |
+        flow_plan = request.context.get("flow_plan")
+        if not flow_plan:
+            return True
+        return flow_plan.context.get("auth_method") != "auth_webauthn_pwl"
+  - model: authentik_flows.flow
+    id: authentication-flow
+    identifiers:
+      slug: mossyleaf-authentication
+    attrs:
+      name: mossyleaf - Sign in
+      title: Sign in to mossyleaf
+      designation: authentication
+      authentication: none
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf authentication-flow
+      stage: !KeyOf identification
+      order: 10
+  - model: authentik_flows.flowstagebinding
+    id: mfa-binding
+    identifiers:
+      target: !KeyOf authentication-flow
+      stage: !KeyOf mfa
+      order: 30
+    attrs:
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf authentication-flow
+      stage: !KeyOf user-login
+      order: 100
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf mfa-binding
+      policy: !KeyOf mfa-skip-after-passkey
+      order: 10
+    attrs:
+      failure_result: true
+
+  - model: authentik_brands.brand
+    identifiers:
+      default: true
+    attrs:
+      domain: accounts.mossyleaf.studio
+      branding_title: mossyleaf
+      branding_logo: /static/dist/custom/logo.svg
+      branding_favicon: /static/dist/custom/favicon.svg
+      branding_default_flow_background: /static/dist/custom/background.svg
+      branding_custom_css: !File [/web/dist/custom/branding.css, ""]
+      flow_authentication: !KeyOf authentication-flow
+      flow_recovery: !KeyOf recovery-flow
+      flow_invalidation: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
+      flow_user_settings: !Find [authentik_flows.flow, [slug, default-user-settings-flow]]
+      flow_unenrollment: null
+      attributes:
+        settings:
+          theme:
+            base: light

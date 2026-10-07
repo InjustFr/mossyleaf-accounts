@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="90"/>
+    </filter>
+    <path id="leaf" d="M0 0C0-60 40-105 110-110C110-45 65 0 0 0Z"/>
+  </defs>
+  <rect width="1600" height="1000" fill="#f5f5f3"/>
+  <g filter="url(#soft)" opacity=".55">
+    <ellipse cx="180" cy="880" rx="420" ry="260" fill="#c6dc93"/>
+    <ellipse cx="1450" cy="120" rx="380" ry="240" fill="#b9d39a"/>
+    <ellipse cx="1350" cy="900" rx="300" ry="200" fill="#7fa58c" opacity=".55"/>
+    <ellipse cx="300" cy="80" rx="260" ry="160" fill="#9fbf7a" opacity=".45"/>
+  </g>
+  <g fill="#5b7f3a" opacity=".11">
+    <use href="#leaf" transform="translate(90 930) rotate(-8) scale(1.9)"/>
+    <use href="#leaf" transform="translate(250 960) rotate(28) scale(1.2)"/>
+    <use href="#leaf" transform="translate(40 760) rotate(-40) scale(1.05)"/>
+    <use href="#leaf" transform="translate(1520 250) rotate(178) scale(1.7)"/>
+    <use href="#leaf" transform="translate(1600 90) rotate(140) scale(1.15)"/>
+    <use href="#leaf" transform="translate(1380 60) rotate(205) scale(.9)"/>
+  </g>
+</svg>

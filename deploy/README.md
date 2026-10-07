@@ -1,0 +1,181 @@
+# mossyleaf accounts — running on a server
+
+This folder plus `blueprints/`, `templates/`, `branding/` and `scripts/` is all a server needs: `compose.yaml` runs Authentik (server + worker, `ghcr.io/goauthentik/server`) and PostgreSQL 18. Everything Authentik needs (groups, OIDC providers and applications, flows, brand, emails) is declared in the blueprints and applied on start.
+
+On `user@server` it lives in `/path/to/mossyleaf-accounts`, behind the shared `nginx` container, at `https://accounts.mossyleaf.studio`.
+
+## Prerequisites
+
+- Docker Engine with the Compose plugin (`docker compose version`). Authentik takes about 1 GB of RAM (server + worker).
+- An SMTP account for invitation and password emails.
+- DNS for `accounts.mossyleaf.studio` pointing at the server (already covered by `*.mossyleaf.studio`).
+
+## First install
+
+From a dev machine (copies `compose.yaml`, `.env.dist`, this README, `blueprints/`, `templates/`, `branding/` and `scripts/`):
+
+```bash
+make deploy-files
+```
+
+On the server:
+
+```bash
+cd /path/to/mossyleaf-accounts
+cp .env.dist .env
+chmod 600 .env
+```
+
+Fill `.env`:
+
+| Variable | Value |
+|---|---|
+| `AUTHENTIK_TAG` | Authentik version to run (`2026.8.3`) |
+| `PG_PASS` | `openssl rand -base64 36 \| tr -d '\n'` |
+| `AUTHENTIK_SECRET_KEY` | `openssl rand -base64 60 \| tr -d '\n'` |
+| `AUTHENTIK_WEB__BASE_URL` | `https://accounts.mossyleaf.studio` |
+| `AUTHENTIK_BOOTSTRAP_EMAIL` / `AUTHENTIK_BOOTSTRAP_PASSWORD` | Email and password of the first admin, `akadmin` (only read on the very first start; clear the password afterwards) |
+| `AUTHENTIK_EMAIL__HOST` / `PORT` / `USERNAME` / `PASSWORD` | SMTP server and credentials |
+| `AUTHENTIK_EMAIL__USE_TLS` / `USE_SSL` | `true`/`false` for STARTTLS on 587, `false`/`true` for 465 |
+| `AUTHENTIK_EMAIL__FROM` | Sender, e.g. `mossyleaf <accounts@mossyleaf.studio>` |
+| `MOSSYDEW_CLIENT_SECRET` | `openssl rand -hex 32`, same value in MossyDew's `OIDC_CLIENT_SECRET` |
+| `MOSSYTRUNK_CLIENT_SECRET` | `openssl rand -hex 32`, same value in MossyTrunk's `OIDC_CLIENT_SECRET` |
+
+Never change `AUTHENTIK_SECRET_KEY` or `PG_PASS` after the first start: sessions, tokens and the database depend on them. Keep a copy of `.env` with the backups. Changing a client secret means updating the app at the same time.
+
+## Start
+
+```bash
+docker compose pull
+docker compose up -d
+docker compose logs -f server worker
+```
+
+The first start runs the migrations (about a minute) then the worker applies the blueprints. Check they all succeeded:
+
+```bash
+docker compose exec -T worker ak shell -c "from authentik.blueprints.models import BlueprintInstance as B; [print(b.status, b.path) for b in B.objects.filter(path__startswith='custom')]"
+```
+
+Both `custom/mossyleaf-*.yaml` lines must say `successful`. `curl -s https://accounts.mossyleaf.studio/application/o/mossydew/.well-known/openid-configuration` must return JSON once the proxy is set up.
+
+## Reverse proxy
+
+The server container joins the external network `proxy-network` with the alias `mossyleaf-accounts` and publishes no port. Authentik needs `Host`, the `X-Forwarded-*` headers and WebSocket upgrades. The nginx container's address is in Authentik's default trusted proxy ranges (private networks), so the forwarded headers are honoured.
+
+1. Expand the shared certificate with the new name. List the current names, then rerun certbot the way it is usually run on the server with every existing `-d` plus the new one:
+
+   ```bash
+   sudo certbot certificates
+   sudo certbot certonly --expand --cert-name example.org -d example.org -d <every other existing name> -d accounts.mossyleaf.studio
+   ```
+
+2. Add to `the nginx configuration` (copy the `listen`/`ssl_*` lines of the `mossydew.mossyleaf.studio` block if they differ, including its port 80 redirect):
+
+   ```nginx
+   map $http_upgrade $mossyleaf_accounts_connection {
+       default upgrade;
+       ''      '';
+   }
+
+   server {
+       listen 443 ssl;
+       http2 on;
+       server_name accounts.mossyleaf.studio;
+
+       ssl_certificate /etc/nginx/ssl/live/example.org/fullchain.pem;
+       ssl_certificate_key /etc/nginx/ssl/live/example.org/privkey.pem;
+
+       client_max_body_size 20m;
+
+       location / {
+           proxy_pass http://mossyleaf-accounts:9000;
+           proxy_http_version 1.1;
+           proxy_set_header Host $host;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_set_header X-Forwarded-Host $host;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection $mossyleaf_accounts_connection;
+       }
+   }
+   ```
+
+3. Check and reload:
+
+   ```bash
+   docker exec nginx nginx -t
+   docker exec nginx nginx -s reload
+   ```
+
+## First admin
+
+`akadmin` is created on the first start from `AUTHENTIK_BOOTSTRAP_EMAIL` / `AUTHENTIK_BOOTSTRAP_PASSWORD`. Sign in at `https://accounts.mossyleaf.studio/` with `akadmin` (or the email) and that password, then:
+
+- open **Admin interface** (`/if/admin/`), check **System › System tasks** and **Customization › Blueprints**;
+- change the password (or invite yourself as a regular user, see below, and add yourself to `authentik Admins`), then remove `AUTHENTIK_BOOTSTRAP_PASSWORD` from `.env`;
+- add yourself to the `mossydew` / `mossytrunk` groups if you use the apps: admins are not exempt from the group rule.
+
+If `AUTHENTIK_BOOTSTRAP_PASSWORD` was left empty, open `https://accounts.mossyleaf.studio/if/flow/initial-setup/` right after the first start to set the admin password.
+
+## Inviting users
+
+There is no public sign-up. An invitation is a user without a password, in the app groups, who receives a one-week link to choose a password (≥ 12 characters).
+
+From a dev machine:
+
+```bash
+make invite REMOTE=1 EMAIL=ada@example.com NAME="Ada Lovelace" GROUPS="mossydew mossytrunk"
+```
+
+`TIMEZONE` (default `Europe/Paris`, sent as the `zoneinfo` claim) and `LOCALE` (default `fr`, language of the email and of the account pages) are optional. Running it again for an existing email only adds the groups and sends a fresh link (the previous one stops working).
+
+On the server: `docker compose exec -T -e INVITE_EMAIL=ada@example.com -e INVITE_NAME="Ada Lovelace" -e INVITE_GROUPS="mossydew" -e INVITE_HOST=accounts.mossyleaf.studio -e INVITE_SECURE=1 worker ak shell < scripts/invite.py`
+
+From the admin interface: **Directory › Users › Create** (username = email, name, email), open the user, **Groups › Add to existing group**, then **Recovery › Email recovery link** and pick the `mossyleaf-invitation-email` stage.
+
+Removing access to an app = removing the user from its group. **Deactivate** blocks every app at once.
+
+## Adding a new app
+
+In `blueprints/mossyleaf-apps.yaml`, copy the MossyDew block (group, provider, application, binding) and change the slug, name, redirect URIs and the `!Env` secret name. Add the secret to `.env` and `.env.dist`, then `make deploy` (the blueprint is reapplied when the file changes). The app gets its discovery document at `https://accounts.mossyleaf.studio/application/o/<slug>/.well-known/openid-configuration`.
+
+## Backup / restore
+
+The state is the PostgreSQL database plus `data/` (uploaded media; small). The blueprints, templates and branding are in git.
+
+```bash
+docker compose exec -T postgresql pg_dump -U authentik -Fc authentik > accounts-$(date +%F).dump
+sudo tar czf accounts-data-$(date +%F).tgz data .env
+```
+
+Restore on a fresh install (same `.env`):
+
+```bash
+docker compose up -d postgresql
+docker compose exec -T postgresql pg_restore -U authentik -d authentik --clean --if-exists < accounts-YYYY-MM-DD.dump
+sudo tar xzf accounts-data-YYYY-MM-DD.tgz
+docker compose up -d
+```
+
+## Update / rollback
+
+Read the release notes (`https://docs.goauthentik.io/releases/<year.month>/`) first; upgrade one minor version at a time (2026.8 → 2026.11 → …). Back up, then from a dev machine bump `AUTHENTIK_TAG` in `compose.yaml` and the server `.env` and run:
+
+```bash
+make deploy      # defaults to DEPLOY_HOST=user@server DEPLOY_DIR=/path/to/mossyleaf-accounts REMOTE_DOCKER="docker"
+```
+
+It copies the files, pulls the image and restarts the containers; migrations run on start. Migrations only move forward: rolling back means restoring the database dump taken before the update, then starting the previous `AUTHENTIK_TAG`.
+
+A blueprint with a YAML syntax error stops the server at start (the migrations import the blueprints): when editing them, run `make up` locally first.
+
+## Operations
+
+```bash
+docker compose ps
+docker compose logs -f server worker
+docker compose exec -T worker ak apply_blueprint custom/mossyleaf-accounts.yaml custom/mossyleaf-apps.yaml   # reapply now (e.g. after a branding.css change)
+docker compose exec -T worker ak test_email you@example.com                                                     # check SMTP
+docker compose down        # stop, data kept
+```
