@@ -1,5 +1,5 @@
 x-authentik: &authentik
-  image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8.3}
+  image: ${IMAGE:-docker.io/injust/mossyleaf-accounts}:${TAG:-latest}
   restart: unless-stopped
   shm_size: 512mb
   env_file: .env
@@ -13,9 +13,6 @@ x-authentik: &authentik
     AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS:?PG_PASS is required}
   volumes:
     - ./data:/data
-    - ./blueprints:/blueprints/custom:ro
-    - ./templates:/templates:ro
-    - ./branding:/web/dist/custom:ro
 
 services:
   postgresql:

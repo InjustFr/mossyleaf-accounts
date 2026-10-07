@@ -10,6 +10,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  IMAGE: docker.io/injust/mossyleaf-accounts
+  # Test the image as published: without compose.override.yaml's source mounts.
+  COMPOSE_FILE: compose.yaml
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -35,6 +40,21 @@ jobs:
 
       - if: failure()
         run: docker compose logs server worker
+
+      - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Publish the tested image
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          sha=$(git rev-parse --short=7 HEAD)
+          for tag in "$sha" latest; do
+            docker tag mossyleaf-accounts:dev "$IMAGE:$tag"
+            docker push "$IMAGE:$tag"
+          done
 
       - if: always()
         run: docker compose down --volumes

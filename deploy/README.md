@@ -1,6 +1,6 @@
 # mossyleaf accounts — running on a server
 
-This folder plus `blueprints/`, `templates/`, `branding/` and `scripts/` is all a server needs: `compose.yaml` runs Authentik (server + worker, `ghcr.io/goauthentik/server`) and PostgreSQL 18. Everything Authentik needs (groups, OIDC providers and applications, flows, brand, emails) is declared in the blueprints and applied on start.
+This folder is all a server needs: `compose.yaml` runs the image `docker.io/injust/mossyleaf-accounts` (Authentik server + worker, with the blueprints, email templates and branding baked in) and PostgreSQL 18. Everything Authentik needs (groups, OIDC providers and applications, flows, brand, emails) is declared in the blueprints and applied on start. No source checkout on the server.
 
 It runs in its own directory on the server (`DEPLOY_DIR`), behind a shared nginx container, at `https://accounts.mossyleaf.studio`.
 
@@ -12,7 +12,7 @@ It runs in its own directory on the server (`DEPLOY_DIR`), behind a shared nginx
 
 ## First install
 
-From a dev machine (copies `compose.yaml`, `.env.dist`, this README, `blueprints/`, `templates/`, `branding/` and `scripts/`):
+From a dev machine (copies `compose.yaml`, `.env.dist` and this README):
 
 ```bash
 make deploy-files
@@ -30,7 +30,7 @@ Fill `.env`:
 
 | Variable | Value |
 |---|---|
-| `AUTHENTIK_TAG` | Authentik version to run (`2026.8.3`) |
+| `IMAGE` / `TAG` | Image to run; `make deploy` sets `TAG` to the commit it deploys |
 | `PROXY_NETWORK` | External Docker network of the nginx reverse proxy (`docker network ls`) |
 | `PG_PASS` | `openssl rand -base64 36 \| tr -d '\n'` |
 | `AUTHENTIK_SECRET_KEY` | `openssl rand -base64 60 \| tr -d '\n'` |
@@ -132,7 +132,7 @@ make invite REMOTE=1 EMAIL=ada@example.com NAME="Ada Lovelace" GROUPS="mossydew 
 
 `TIMEZONE` (default `Europe/Paris`, sent as the `zoneinfo` claim) and `LOCALE` (default `fr`, language of the email and of the account pages) are optional. Running it again for an existing email only adds the groups and sends a fresh link (the previous one stops working).
 
-On the server: `docker compose exec -T -e INVITE_EMAIL=ada@example.com -e INVITE_NAME="Ada Lovelace" -e INVITE_GROUPS="mossydew" -e INVITE_HOST=accounts.mossyleaf.studio -e INVITE_SECURE=1 worker ak shell < scripts/invite.py`
+On the server (the script is in the image): `docker compose exec -T -e INVITE_EMAIL=ada@example.com -e INVITE_NAME="Ada Lovelace" -e INVITE_GROUPS="mossydew" -e INVITE_HOST=accounts.mossyleaf.studio -e INVITE_SECURE=1 worker sh -c 'ak shell < /mossyleaf/invite.py'`
 
 From the admin interface: **Directory › Users › Create** (username = email, name, email), open the user, **Groups › Add to existing group**, then **Recovery › Email recovery link** and pick the `mossyleaf-invitation-email` stage.
 
@@ -140,11 +140,11 @@ Removing access to an app = removing the user from its group. **Deactivate** blo
 
 ## Adding a new app
 
-In `blueprints/mossyleaf-apps.yaml`, copy the MossyDew block (group, provider, application, binding) and change the slug, name, redirect URIs and the `!Env` secret name. Add the secret to `.env` and `.env.dist`, then `make deploy` (the blueprint is reapplied when the file changes). The app gets its discovery document at `https://accounts.mossyleaf.studio/application/o/<slug>/.well-known/openid-configuration`.
+In `blueprints/mossyleaf-apps.yaml`, copy the MossyDew block (group, provider, application, binding) and change the slug, name, redirect URIs and the `!Env` secret name. Add the secret to the server `.env` and to `.env.dist`, push to `main`, then `make deploy` once CI has published the image. The app gets its discovery document at `https://accounts.mossyleaf.studio/application/o/<slug>/.well-known/openid-configuration`.
 
 ## Backup / restore
 
-The state is the PostgreSQL database plus `data/` (uploaded media; small). The blueprints, templates and branding are in git.
+The state is the PostgreSQL database plus `data/` (uploaded media; small). The blueprints, templates and branding are in git and in every published image.
 
 ```bash
 docker compose exec -T postgresql pg_dump -U authentik -Fc authentik > accounts-$(date +%F).dump
@@ -162,22 +162,24 @@ docker compose up -d
 
 ## Update / rollback
 
-Read the release notes (`https://docs.goauthentik.io/releases/<year.month>/`) first; upgrade one minor version at a time (2026.8 → 2026.11 → …). Back up, then from a dev machine bump `AUTHENTIK_TAG` in `compose.yaml` and the server `.env` and run:
+Every push to `main` runs `make check` on a fresh stack built from the image and, only if it passes, publishes `docker.io/injust/mossyleaf-accounts:<short sha>` and `:latest` (GitHub Actions, [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)). Then, from a dev machine on that commit:
 
 ```bash
 make deploy      # uses DEPLOY_HOST, DEPLOY_DIR and REMOTE_DOCKER from the root .env
 ```
 
-It copies the files, pulls the image and restarts the containers; migrations run on start. Migrations only move forward: rolling back means restoring the database dump taken before the update, then starting the previous `AUTHENTIK_TAG`.
+It refuses a commit whose image is not published, sets `IMAGE`/`TAG` in the server `.env`, pulls, restarts and reapplies the blueprints (so a `branding.css`-only change shows up too); migrations run on start. The image is public: the server pulls it without `docker login`.
 
-A blueprint with a YAML syntax error stops the server at start (the migrations import the blueprints): when editing them, run `make up` locally first.
+Updating Authentik: read the release notes (`https://docs.goauthentik.io/releases/<year.month>/`) first and upgrade one minor version at a time (2026.8 → 2026.11 → …). Back up, bump `AUTHENTIK_TAG` in the `Dockerfile`, push, then `make deploy`. Migrations only move forward: rolling back across an Authentik version means restoring the database dump taken before the update, then running the previous tag (`make deploy TAG=<previous sha>`).
+
+A blueprint with a YAML syntax error stops the server at start (the migrations import the blueprints): CI catches it, and `make up check` does locally.
 
 ## Operations
 
 ```bash
 docker compose ps
 docker compose logs -f server worker
-docker compose exec -T worker ak apply_blueprint custom/mossyleaf-accounts.yaml custom/mossyleaf-apps.yaml   # reapply now (e.g. after a branding.css change)
+docker compose exec -T worker ak apply_blueprint custom/mossyleaf-accounts.yaml custom/mossyleaf-apps.yaml   # reapply now (make deploy does it)
 docker compose exec -T worker ak test_email you@example.com                                                     # check SMTP
 docker compose down        # stop, data kept
 ```

@@ -1,0 +1,13 @@
+# Local development only: serve the blueprints, templates and branding from the
+# working tree instead of the copies baked into the image, so an edit needs no
+# rebuild (make apply reapplies the blueprints). CI sets COMPOSE_FILE=compose.yaml
+# to test the image as published.
+services:
+  server:
+    volumes: &sources
+      - ./blueprints:/blueprints/custom:ro
+      - ./templates:/templates:ro
+      - ./branding:/web/dist/custom:ro
+
+  worker:
+    volumes: *sources

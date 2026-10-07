@@ -1,9 +1,14 @@
 DC = docker compose
 -include .env
 
+IMAGE ?= docker.io/injust/mossyleaf-accounts
+TAG ?= $(shell git rev-parse --short=7 HEAD)
+PLATFORM ?= linux/amd64
 DEPLOY_HOST ?=
 DEPLOY_DIR ?=
 REMOTE_DOCKER ?= docker
+NEEDS_DEPLOY_TARGET = @test -n "$(DEPLOY_HOST)" -a -n "$(DEPLOY_DIR)" || { echo "Set DEPLOY_HOST and DEPLOY_DIR (e.g. in .env)"; exit 1; }
+BLUEPRINTS = custom/mossyleaf-accounts.yaml custom/mossyleaf-apps.yaml
 
 EMAIL ?=
 NAME ?=
@@ -15,10 +20,10 @@ INVITE_ENV = -e INVITE_EMAIL='$(EMAIL)' -e INVITE_NAME='$(NAME)' -e INVITE_GROUP
 
 SHOT = $(DC) run --rm --no-deps playwright npx -y playwright@1.63.0 screenshot --wait-for-timeout=4000
 
-.PHONY: up down logs ps apply check invite shots deploy-files deploy
+.PHONY: up down logs ps apply check invite shots image push deploy-files deploy
 
-up: ## Start Authentik on http://localhost:9000 and Mailpit on http://localhost:8027
-	$(DC) up -d --wait
+up: ## Build the image and start Authentik on http://localhost:9000 and Mailpit on http://localhost:8027
+	$(DC) up -d --wait --build
 
 down:
 	$(DC) down
@@ -30,7 +35,7 @@ ps:
 	$(DC) ps
 
 apply: ## Re-apply the custom blueprints now (e.g. after editing branding/branding.css)
-	$(DC) exec -T worker ak apply_blueprint custom/mossyleaf-accounts.yaml custom/mossyleaf-apps.yaml
+	$(DC) exec -T worker ak apply_blueprint $(BLUEPRINTS)
 
 check: ## Smoke test the running stack: blueprints applied, OpenID configurations, sign-in page, brand (CI runs it on a fresh stack)
 	./scripts/check.sh
@@ -48,11 +53,25 @@ shots: ## Screenshot the sign-in page at phone and desktop widths into shots/
 	$(SHOT) --viewport-size=390,844 http://server:9000/if/flow/mossyleaf-authentication/ shots/login-phone.png
 	$(SHOT) --viewport-size=1440,900 http://server:9000/if/flow/mossyleaf-authentication/ shots/login-desktop.png
 
-deploy-files: ## Copy compose, env template, blueprints, templates, branding and scripts to the server
-	@test -n "$(DEPLOY_HOST)" -a -n "$(DEPLOY_DIR)" || (echo "Set DEPLOY_HOST and DEPLOY_DIR (e.g. in .env)" && exit 1)
-	ssh $(DEPLOY_HOST) 'mkdir -p $(DEPLOY_DIR)'
-	rsync -a deploy/compose.yaml deploy/.env.dist deploy/README.md $(DEPLOY_HOST):$(DEPLOY_DIR)/
-	rsync -a --delete blueprints templates branding scripts $(DEPLOY_HOST):$(DEPLOY_DIR)/
+image: ## Build the production image locally (IMAGE, TAG, PLATFORM)
+	docker buildx build --platform $(PLATFORM) -t $(IMAGE):$(TAG) -t $(IMAGE):latest --load .
 
-deploy: deploy-files ## Copy the files then pull and (re)start Authentik on the server
-	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_DIR) && $(REMOTE_DOCKER) compose pull && $(REMOTE_DOCKER) compose up -d'
+push: ## Build and push the image by hand (CI does it on every push to main once make check passes; run docker login first)
+	docker buildx build --platform $(PLATFORM) -t $(IMAGE):$(TAG) -t $(IMAGE):latest --push .
+
+deploy-files: ## Copy the server compose file, env template and README to DEPLOY_HOST:DEPLOY_DIR
+	$(NEEDS_DEPLOY_TARGET)
+	ssh $(DEPLOY_HOST) 'mkdir -p $(DEPLOY_DIR)'
+	scp deploy/compose.yaml deploy/.env.dist deploy/README.md $(DEPLOY_HOST):$(DEPLOY_DIR)/
+
+deploy: ## Run IMAGE:TAG (published by CI) on DEPLOY_HOST: set it in the server .env, pull, restart, reapply the blueprints
+	$(NEEDS_DEPLOY_TARGET)
+	@curl -sf -o /dev/null https://hub.docker.com/v2/repositories/$(patsubst docker.io/%,%,$(IMAGE))/tags/$(TAG) || { echo "$(IMAGE):$(TAG) is not published: CI only publishes it once make check passes (still running, or failed?)"; exit 1; }
+	scp deploy/compose.yaml $(DEPLOY_HOST):$(DEPLOY_DIR)/
+	ssh $(DEPLOY_HOST) 'set -e; cd $(DEPLOY_DIR); \
+		sed -i "/^IMAGE=/d; /^TAG=/d; /^AUTHENTIK_TAG=/d" .env; \
+		printf "IMAGE=%s\nTAG=%s\n" "$(IMAGE)" "$(TAG)" >> .env; \
+		$(REMOTE_DOCKER) compose pull server worker; \
+		$(REMOTE_DOCKER) compose up -d --wait --remove-orphans; \
+		$(REMOTE_DOCKER) compose exec -T worker ak apply_blueprint $(BLUEPRINTS) >/dev/null'
+	@echo "$(IMAGE):$(TAG) is running on $(DEPLOY_HOST)"

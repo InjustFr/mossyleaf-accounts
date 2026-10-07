@@ -2,11 +2,14 @@
 
 Single sign-on for the mossyleaf apps at **https://accounts.mossyleaf.studio**: a self-hosted [Authentik](https://goauthentik.io) **2026.8.3** where MossyDew and MossyTrunk are OpenID Connect clients. One account per person, one group per app, no public sign-up.
 
-Everything is configuration: Authentik runs from its official image and the blueprints in `blueprints/` declare the groups, OIDC providers, applications, access bindings, flows and brand, so a fresh install is ready on its first start.
+Everything is configuration: the image `docker.io/injust/mossyleaf-accounts` is Authentik's official image with this repository's blueprints, email templates and branding copied in. The blueprints declare the groups, OIDC providers, applications, access bindings, flows and brand, so a fresh install is ready on its first start, and updating the server is pulling a newer tag.
 
 | Path | What |
 |---|---|
-| `compose.yaml` | Local stack: Authentik server (http://localhost:9000) + worker, PostgreSQL 18, Mailpit (http://localhost:8027) |
+| `Dockerfile` | The image: `ghcr.io/goauthentik/server` (version in `AUTHENTIK_TAG`) plus `blueprints/`, `templates/`, `branding/` and `scripts/invite.py` |
+| `compose.yaml` | Local stack: the image built from the Dockerfile as Authentik server (http://localhost:9000) + worker, PostgreSQL 18, Mailpit (http://localhost:8027) |
+| `compose.override.yaml` | Local only: mounts `blueprints/`, `templates/` and `branding/` over the image's copies, so edits need no rebuild |
+| `.github/workflows/ci.yml` | On every push: builds the image, starts it on a fresh stack, runs `make check`, keeps the sign-in screenshots; on `main` it then publishes the tested image to Docker Hub |
 | `blueprints/mossyleaf-accounts.yaml` | Sign-in, recovery and password-change flows, invitation email, password policy, brand |
 | `blueprints/mossyleaf-apps.yaml` | Groups `mossydew` / `mossytrunk`, their OIDC providers and applications, group bindings, `zoneinfo` claim |
 | `branding/` | Logo, favicon, background, `branding.css` (the brand's custom CSS) and self-hosted fonts, served at `/static/dist/custom/` |
@@ -17,15 +20,16 @@ Everything is configuration: Authentik runs from its official image and the blue
 ## Local use
 
 ```bash
-make up                 # http://localhost:9000, admin: akadmin / admin-password
+make up                 # build the image, http://localhost:9000, admin: akadmin / admin-password
 make invite EMAIL=ada@example.com NAME="Ada Lovelace" GROUPS="mossydew mossytrunk"
 open http://localhost:8027   # Mailpit: the invitation link
 make apply              # reapply the blueprints now (needed after editing branding/branding.css)
+make check              # smoke test: blueprints applied, OpenID configurations, sign-in page, brand
 make shots              # sign-in page screenshots (phone + desktop) into shots/
 make logs / make down
 ```
 
-The worker reapplies a blueprint whenever its YAML changes; `branding.css` is read by the brand blueprint (`!File`), so a CSS-only change needs `make apply`.
+The worker reapplies a blueprint whenever its YAML changes; `branding.css` is read by the brand blueprint (`!File`), so a CSS-only change needs `make apply` (`make deploy` runs it on the server). To try the image exactly as CI publishes it, without the source mounts: `COMPOSE_FILE=compose.yaml make up check`.
 
 Local client secrets: `mossydew-local-secret` and `mossytrunk-local-secret` (override with `MOSSYDEW_CLIENT_SECRET` / `MOSSYTRUNK_CLIENT_SECRET` in a root `.env`).
 
@@ -93,13 +97,13 @@ The sign-in, recovery and password-change flows run in Authentik's compatibility
 |---|---|
 | Patua One (LatinoType), `branding/fonts/patua-one-*.woff2`, also outlined in `logo.svg` | SIL Open Font License 1.1, `branding/fonts/LICENSE-patua-one.txt` (via `@fontsource/patua-one` 5.3.0) |
 | Inter (The Inter Project Authors), `branding/fonts/inter-*.woff2` | SIL Open Font License 1.1, `branding/fonts/LICENSE-inter.txt` (via `@fontsource-variable/inter` 5.3.0) |
-| Authentik `ghcr.io/goauthentik/server` | MIT (open-source edition; no enterprise features used) |
+| Authentik `ghcr.io/goauthentik/server` (base of the image) | MIT (open-source edition; no enterprise features used) |
 | PostgreSQL `postgres:18-alpine` | PostgreSQL License |
 | Mailpit `axllent/mailpit` (local only) | MIT |
 
 ## Server
 
-See [deploy/README.md](deploy/README.md): first install, `.env`, nginx block and certificate, first admin, invitations, new apps, backups, updates. `make deploy-files` / `make deploy` copy the files to `$(DEPLOY_HOST):$(DEPLOY_DIR)`, set in a root `.env` (gitignored):
+See [deploy/README.md](deploy/README.md): first install, `.env`, nginx block and certificate, first admin, invitations, new apps, backups, updates. Push to `main`, wait for CI to publish the image, then `make deploy` runs that commit's tag on the server. `make deploy-files` / `make deploy` reach the server through `$(DEPLOY_HOST):$(DEPLOY_DIR)`, set in a root `.env` (gitignored):
 
 ```bash
 DEPLOY_HOST=user@server
