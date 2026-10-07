@@ -26,17 +26,20 @@
 
 :root,
 :host {
-  --ml-background: #f5f5f3;
-  --ml-surface: #ffffff;
-  --ml-text: #2b2d2a;
-  --ml-muted: #6b6e68;
-  --ml-border: #e3e4e0;
-  --ml-border-strong: #cfd1cb;
+  --ml-ground: #1e2f17;
+  --ml-paper: #f7f8f1;
+  --ml-paper-line: #dfe2d4;
+  --ml-field: #ffffff;
+  --ml-text: #262a22;
+  --ml-muted: #646a5c;
+  --ml-border: #c9cdbd;
   --ml-accent: #5b7f3a;
   --ml-accent-strong: #4a6a2e;
-  --ml-accent-soft: #eef3e8;
+  --ml-accent-soft: #e4ecd6;
   --ml-leaf-deep: #3d5c28;
-  --ml-radius: 0.5rem;
+  --ml-lichen: #c6dc93;
+  --ml-tape: rgb(233 236 214 / 72%);
+  --ml-radius: 0.375rem;
 
   --ak-accent: var(--ml-accent);
   --ak-global--BackgroundContrastFilter: none;
@@ -49,7 +52,7 @@
   --pf-global--link--Color: var(--ml-accent-strong);
   --pf-global--link--Color--hover: var(--ml-leaf-deep);
   --pf-global--BorderRadius--sm: var(--ml-radius);
-  --pf-global--BorderColor--100: var(--ml-border-strong);
+  --pf-global--BorderColor--100: var(--ml-border);
   --pf-global--Color--100: var(--ml-text);
   --pf-global--Color--200: var(--ml-muted);
   --pf-global--Color--dark-100: var(--ml-text);
@@ -63,22 +66,74 @@
   --pf-c-check__input--accent-color: var(--ml-accent);
 }
 
-.pf-c-login {
-  --ak-c-login__main--BackgroundColor: var(--ml-surface);
-  --ak-c-login__main--Color: var(--ml-text);
-  --ak-c-login__main--BoxShadow: 0 0.0625rem 0.125rem rgb(17 17 17 / 6%), 0 0.5rem 1.5rem rgb(17 17 17 / 8%);
-  --ak-c-login__footer--Color: var(--ml-muted);
-  --ak-c-login--MaxWidth: 28rem;
+/* Page: dark moss ground, sheet centered on both axes.
+   `:not(#_)` lifts specificity above Authentik's scoped `.pf-c-login.ak-flow-executor` rules. */
+
+html body {
+  background: var(--ml-ground) var(--ak-global--background-image) center / cover no-repeat;
 }
 
-.pf-c-login__main {
-  border: 0.0625rem solid var(--ml-border);
-  border-radius: var(--ml-radius);
+.pf-c-login:not(#_) {
+  --ak-c-login__main--BackgroundColor: var(--ml-paper);
+  --ak-c-login__main--Color: var(--ml-text);
+  --ak-c-login__main--BoxShadow:
+    0 0.125rem 0.25rem rgb(10 18 6 / 30%),
+    0 1.25rem 3rem -0.5rem rgb(10 18 6 / 60%);
+  --ak-c-login__footer--Color: var(--ml-lichen);
+  --ak-c-login--MaxWidth: 26rem;
+  --ak-c-login--BackgroundColorOverlay: transparent;
+  --pf-c-login--xl--BackgroundImage: none;
+  background: transparent;
+  grid-template-rows: [header] minmax(4.5rem, 1fr) [main] auto [footer] minmax(4.5rem, 1fr);
+}
+
+/* Authentik's grid column is wider than the sheet: center the sheet inside it. */
+.pf-c-login__main:not(#_) {
+  justify-self: center;
+  align-self: center;
+  width: min(26rem, 100% - 2rem);
+  max-width: 26rem;
+  margin-block: 1.5rem;
+  overflow: visible;
+  color: var(--ml-text);
+  border: 0;
+  border-radius: 0.125rem;
+}
+
+/* Herbarium mounting tape holding the sheet at its top corners.
+   Painted as an image: Authentik forces `background-color: transparent` on pf pseudo-elements. */
+.pf-c-login__main:not(#_)::before,
+.pf-c-login__main:not(#_)::after {
+  content: "";
+  position: absolute;
+  top: -0.75rem;
+  width: 5.5rem;
+  height: 1.625rem;
+  background-image: linear-gradient(var(--ml-tape), var(--ml-tape));
+  box-shadow: 0 0.0625rem 0.125rem rgb(10 18 6 / 22%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pf-c-login__main:not(#_)::before {
+  left: -1.25rem;
+  transform: rotate(-32deg);
+}
+
+.pf-c-login__main:not(#_)::after {
+  right: -1.25rem;
+  transform: rotate(32deg);
+}
+
+/* Sheet contents */
+
+.pf-c-login__main-header.pf-c-brand {
+  padding-top: 2.5rem;
 }
 
 .pf-c-login__main-header.pf-c-brand img,
 .pf-c-brand img {
-  max-height: 3.25rem;
+  max-height: 3rem;
 }
 
 .pf-c-login__main-header .pf-c-title,
@@ -87,19 +142,43 @@
 .pf-c-title.pf-m-3xl {
   font-family: "Patua One", Rockwell, Georgia, serif;
   font-weight: 400;
+  font-size: 1.75rem;
+  line-height: 1.2;
   letter-spacing: 0;
   color: var(--ml-leaf-deep);
 }
 
-.pf-c-form-control {
-  border-radius: var(--ml-radius);
-  border: 0.0625rem solid var(--ml-border-strong);
+.pf-c-form__label,
+.pf-c-form__label-text {
+  color: var(--ml-text);
+  font-weight: 600;
 }
 
-.pf-c-form-control:focus,
-.pf-c-form-control:focus-within {
+.pf-c-form-control:not(#_) {
+  background-color: var(--ml-field);
+  color: var(--ml-text);
+  border: 0.0625rem solid var(--ml-border);
+  border-radius: var(--ml-radius);
+  min-height: 2.5rem;
+}
+
+.pf-c-form-control:not(#_)::placeholder {
+  color: #8a8f80;
+  font-style: normal;
+}
+
+.pf-c-form-control:not(#_):hover {
+  border-color: var(--ml-muted);
+}
+
+.pf-c-form-control:not(#_):focus {
   border-color: var(--ml-accent);
   box-shadow: 0 0 0 0.1875rem var(--ml-accent-soft);
+  outline: none;
+}
+
+.pf-c-form-control:not(#_):focus-visible {
+  box-shadow: 0 0 0 0.125rem var(--ml-accent);
 }
 
 .pf-c-button {
@@ -107,6 +186,7 @@
 }
 
 .pf-c-button.pf-m-primary {
+  min-height: 2.75rem;
   background-color: var(--ml-accent);
   color: #ffffff;
   font-weight: 600;
@@ -117,17 +197,48 @@
   background-color: var(--ml-accent-strong);
 }
 
+.pf-c-button.pf-m-primary:focus-visible {
+  outline: 0.125rem solid var(--ml-leaf-deep);
+  outline-offset: 0.125rem;
+}
+
 a,
 .pf-c-button.pf-m-link {
   color: var(--ml-accent-strong);
 }
 
-.pf-c-form-control:focus-visible,
-input:focus-visible {
-  outline: 0.125rem solid var(--ml-accent);
-  outline-offset: 0;
+.pf-c-login__main-footer-band {
+  border-top: 0.0625rem solid var(--ml-paper-line);
+  background: transparent;
 }
 
-ak-locale-select[part=locale-select] {
-  --ak-c-flow-executor__locale-select--Color: var(--ml-muted);
+/* On the dark ground: language picker and footer links */
+
+ak-locale-select:not(#_) {
+  --ak-c-flow-executor__locale-select--Color: var(--ml-lichen);
+  color: var(--ml-lichen);
+}
+
+.pf-c-login__footer:not(#_),
+.pf-c-login__footer:not(#_) a,
+ak-brand-links:not(#_) a,
+ak-brand-links:not(#_) li {
+  color: var(--ml-lichen);
+}
+
+@media (max-width: 35rem) {
+  .pf-c-login__main:not(#_)::before,
+  .pf-c-login__main:not(#_)::after {
+    width: 4.25rem;
+    height: 1.375rem;
+    top: -0.625rem;
+  }
+
+  .pf-c-login__main:not(#_)::before {
+    left: -0.875rem;
+  }
+
+  .pf-c-login__main:not(#_)::after {
+    right: -0.875rem;
+  }
 }

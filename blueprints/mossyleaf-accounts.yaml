@@ -102,6 +102,7 @@ entries:
       title: Change your password
       designation: stage_configuration
       authentication: require_authenticated
+      compatibility_mode: true
   - model: authentik_flows.flowstagebinding
     identifiers:
       target: !KeyOf password-change-flow
@@ -159,6 +160,7 @@ entries:
       title: Choose a new password
       designation: recovery
       authentication: require_unauthenticated
+      compatibility_mode: true
   - model: authentik_flows.flowstagebinding
     id: recovery-identification-binding
     identifiers:
@@ -252,6 +254,7 @@ entries:
       title: Sign in to mossyleaf
       designation: authentication
       authentication: none
+      compatibility_mode: true
   - model: authentik_flows.flowstagebinding
     identifiers:
       target: !KeyOf authentication-flow

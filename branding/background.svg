@@ -1,23 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="90"/>
-    </filter>
-    <path id="leaf" d="M0 0C0-60 40-105 110-110C110-45 65 0 0 0Z"/>
+    <radialGradient id="glow" cx="50%" cy="46%" r="62%">
+      <stop offset="0" stop-color="#34502a"/>
+      <stop offset=".55" stop-color="#253a1c"/>
+      <stop offset="1" stop-color="#1a2914"/>
+    </radialGradient>
+    <g id="leaf">
+      <path d="M0 0C0-62 42-108 114-112C114-46 68 0 0 0Z"/>
+      <path d="M0 0C30-28 62-62 104-104" fill="none" stroke="#1e2f17" stroke-width="3" stroke-linecap="round" opacity=".55"/>
+    </g>
+    <g id="frond" fill="none" stroke-linecap="round">
+      <path d="M0 0C10-90 40-170 96-240" stroke-width="3"/>
+      <path d="M6-40l-30-14M6-40l26-22M14-80l-30-18M14-80l26-24M28-120l-28-20M28-120l24-26M46-158l-24-20M46-158l20-26M66-194l-18-18M66-194l16-22" stroke-width="2.4"/>
+    </g>
   </defs>
-  <rect width="1600" height="1000" fill="#f5f5f3"/>
-  <g filter="url(#soft)" opacity=".55">
-    <ellipse cx="180" cy="880" rx="420" ry="260" fill="#c6dc93"/>
-    <ellipse cx="1450" cy="120" rx="380" ry="240" fill="#b9d39a"/>
-    <ellipse cx="1350" cy="900" rx="300" ry="200" fill="#7fa58c" opacity=".55"/>
-    <ellipse cx="300" cy="80" rx="260" ry="160" fill="#9fbf7a" opacity=".45"/>
+  <rect width="1600" height="1000" fill="url(#glow)"/>
+  <g fill="#c6dc93" opacity=".09">
+    <use href="#leaf" transform="translate(110 940) rotate(-12) scale(2.1)"/>
+    <use href="#leaf" transform="translate(300 990) rotate(30) scale(1.25)"/>
+    <use href="#leaf" transform="translate(40 720) rotate(-44) scale(1.1)"/>
+    <use href="#leaf" transform="translate(1500 260) rotate(176) scale(1.8)"/>
+    <use href="#leaf" transform="translate(1610 110) rotate(142) scale(1.2)"/>
+    <use href="#leaf" transform="translate(1360 40) rotate(208) scale(.95)"/>
   </g>
-  <g fill="#5b7f3a" opacity=".11">
-    <use href="#leaf" transform="translate(90 930) rotate(-8) scale(1.9)"/>
-    <use href="#leaf" transform="translate(250 960) rotate(28) scale(1.2)"/>
-    <use href="#leaf" transform="translate(40 760) rotate(-40) scale(1.05)"/>
-    <use href="#leaf" transform="translate(1520 250) rotate(178) scale(1.7)"/>
-    <use href="#leaf" transform="translate(1600 90) rotate(140) scale(1.15)"/>
-    <use href="#leaf" transform="translate(1380 60) rotate(205) scale(.9)"/>
+  <g stroke="#c6dc93" opacity=".12">
+    <use href="#frond" transform="translate(1390 1010) rotate(-14) scale(1.5)"/>
+    <use href="#frond" transform="translate(150 20) rotate(160) scale(1.1)"/>
   </g>
 </svg>
