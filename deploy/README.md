@@ -40,6 +40,7 @@ Fill `.env`:
 | `AUTHENTIK_EMAIL__FROM` | Sender, e.g. `mossyleaf <accounts@mossyleaf.studio>` |
 | `MOSSYDEW_CLIENT_SECRET` | `openssl rand -hex 32`, same value in MossyDew's `OIDC_CLIENT_SECRET` |
 | `MOSSYTRUNK_CLIENT_SECRET` | `openssl rand -hex 32`, same value in MossyTrunk's `OIDC_CLIENT_SECRET` |
+| `MOSSYLEAF_STUDIO_CLIENT_SECRET` | `openssl rand -hex 32`, same value in mossyleaf.studio's `OIDC_CLIENT_SECRET` |
 
 Never change `AUTHENTIK_SECRET_KEY` or `PG_PASS` after the first start: sessions, tokens and the database depend on them. Keep a copy of `.env` with the backups. Changing a client secret means updating the app at the same time.
 
