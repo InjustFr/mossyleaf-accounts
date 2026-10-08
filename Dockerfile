@@ -4,7 +4,7 @@
 ARG AUTHENTIK_TAG=2026.8.3
 FROM ghcr.io/goauthentik/server:${AUTHENTIK_TAG}
 
-LABEL org.opencontainers.image.source="https://github.com/InjustFr/mossyleaf-accounts" \
+LABEL org.opencontainers.image.source="https://github.com/mossyleaf-studio/accounts" \
       org.opencontainers.image.description="Authentik single sign-on for the mossyleaf apps"
 
 COPY blueprints/ /blueprints/custom/
