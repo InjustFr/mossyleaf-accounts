@@ -1,3 +1,5 @@
+name: mossyleaf-accounts
+
 x-authentik: &authentik
   image: mossyleaf-accounts:dev
   build: .
