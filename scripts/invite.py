@@ -11,6 +11,7 @@ name = os.environ.get("INVITE_NAME", "").strip() or email.split("@")[0]
 group_names = os.environ.get("INVITE_GROUPS", "").split()
 timezone = os.environ.get("INVITE_TIMEZONE", "").strip()
 locale = os.environ.get("INVITE_LOCALE", "").strip()
+workspace = os.environ.get("INVITE_WORKSPACE", "").strip()
 host = os.environ["INVITE_HOST"]
 secure = os.environ.get("INVITE_SECURE", "") == "1"
 duration = os.environ.get("INVITE_DURATION", "days=7")
@@ -35,11 +36,15 @@ if timezone and not user.attributes.get("timezone"):
     user.attributes["timezone"] = timezone
 if locale and not user.attributes.get("settings", {}).get("locale"):
     user.attributes.setdefault("settings", {})["locale"] = locale
+if workspace:
+    user.attributes["mossytrunk_workspace"] = workspace
 user.save()
 
 for group in groups:
     user.groups.add(group)
 print("Groups: " + (", ".join(sorted(group.name for group in user.groups.all())) or "none"))
+if user.attributes.get("mossytrunk_workspace"):
+    print(f"MossyTrunk workspace: {user.attributes['mossytrunk_workspace']}")
 
 admin = User.objects.filter(is_active=True, groups__is_superuser=True).first()
 if admin is None:

@@ -31,6 +31,30 @@ entries:
       is_required: false
       is_unique: false
 
+  - model: authentik_core.objectattribute
+    identifiers:
+      key: mossytrunk_workspace
+      managed: mossyleaf.studio/object-attrs/user/mossytrunk-workspace
+    attrs:
+      object_type: authentik_core.user
+      group: MossyTrunk
+      label: Workspace joined on the first sign-in (exact name; empty = a workspace of their own)
+      type: text
+      enabled: true
+      is_required: false
+      is_unique: false
+
+  - model: authentik_providers_oauth2.scopemapping
+    id: scope-mossytrunk-workspace
+    identifiers:
+      name: "mossyleaf: mossytrunk workspace"
+    attrs:
+      scope_name: profile
+      description: MossyTrunk workspace
+      expression: |
+        workspace = request.user.attributes.get("mossytrunk_workspace")
+        return {"mossytrunk_workspace": workspace} if workspace else {}
+
   - model: authentik_providers_oauth2.scopemapping
     id: scope-zoneinfo
     identifiers:
@@ -141,6 +165,7 @@ entries:
         - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
         - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-offline_access]]
         - !KeyOf scope-zoneinfo
+        - !KeyOf scope-mossytrunk-workspace
   - model: authentik_core.application
     id: app-mossytrunk
     identifiers:

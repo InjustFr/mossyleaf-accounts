@@ -127,10 +127,10 @@ There is no public sign-up. An invitation is a user without a password, in the a
 From a dev machine:
 
 ```bash
-make invite REMOTE=1 EMAIL=ada@example.com NAME="Ada Lovelace" GROUPS="mossydew mossytrunk"
+make invite REMOTE=1 EMAIL=ada@example.com NAME="Ada Lovelace" GROUPS="mossydew mossytrunk" WORKSPACE="Atelier Mousse"
 ```
 
-`TIMEZONE` (default `Europe/Paris`, sent as the `zoneinfo` claim) and `LOCALE` (default `fr`, language of the email and of the account pages) are optional. Running it again for an existing email only adds the groups and sends a fresh link (the previous one stops working).
+`TIMEZONE` (default `Europe/Paris`, sent as the `zoneinfo` claim) and `LOCALE` (default `fr`, language of the email and of the account pages) are optional. `WORKSPACE` is the exact name of the MossyTrunk workspace the person joins on their first MossyTrunk sign-in (sent as the `mossytrunk_workspace` claim); without it they get a workspace of their own. It is only read on that first sign-in. Running it again for an existing email only adds the groups (and sets `WORKSPACE` when given) and sends a fresh link (the previous one stops working).
 
 On the server (the script is in the image): `docker compose exec -T -e INVITE_EMAIL=ada@example.com -e INVITE_NAME="Ada Lovelace" -e INVITE_GROUPS="mossydew" -e INVITE_HOST=accounts.mossyleaf.studio -e INVITE_SECURE=1 worker sh -c 'ak shell < /mossyleaf/invite.py'`
 

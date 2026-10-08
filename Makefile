@@ -16,7 +16,7 @@ GROUPS ?= mossydew mossytrunk
 TIMEZONE ?= Europe/Paris
 LOCALE ?= fr
 DURATION ?= days=7
-INVITE_ENV = -e INVITE_EMAIL='$(EMAIL)' -e INVITE_NAME='$(NAME)' -e INVITE_GROUPS='$(GROUPS)' -e INVITE_TIMEZONE='$(TIMEZONE)' -e INVITE_LOCALE='$(LOCALE)' -e INVITE_DURATION='$(DURATION)'
+INVITE_ENV = -e INVITE_EMAIL='$(EMAIL)' -e INVITE_NAME='$(NAME)' -e INVITE_GROUPS='$(GROUPS)' -e INVITE_TIMEZONE='$(TIMEZONE)' -e INVITE_LOCALE='$(LOCALE)' -e INVITE_DURATION='$(DURATION)' -e INVITE_WORKSPACE='$(WORKSPACE)'
 
 SHOT = $(DC) run --rm --no-deps playwright npx -y playwright@1.63.0 screenshot --wait-for-timeout=4000
 
@@ -40,7 +40,7 @@ apply: ## Re-apply the custom blueprints now (e.g. after editing branding/brandi
 check: ## Smoke test the running stack: blueprints applied, OpenID configurations, sign-in page, brand (CI runs it on a fresh stack)
 	./scripts/check.sh
 
-invite: ## make invite EMAIL=a@b.c NAME="Ada" [GROUPS="mossydew mossytrunk"] [REMOTE=1]
+invite: ## make invite EMAIL=a@b.c NAME="Ada" [GROUPS="mossydew mossytrunk"] [WORKSPACE="Atelier Mousse"] [REMOTE=1]
 	@test -n "$(EMAIL)" || (echo "EMAIL is required" && exit 1)
 ifeq ($(REMOTE),1)
 	ssh $(DEPLOY_HOST) "cd $(DEPLOY_DIR) && $(REMOTE_DOCKER) compose exec -T $(INVITE_ENV) -e INVITE_HOST=accounts.mossyleaf.studio -e INVITE_SECURE=1 worker ak shell" < scripts/invite.py

@@ -11,7 +11,7 @@ Everything is configuration: the image `docker.io/injust/mossyleaf-accounts` is 
 | `compose.override.yaml` | Local only: mounts `blueprints/`, `templates/` and `branding/` over the image's copies, so edits need no rebuild |
 | `.github/workflows/ci.yml` | On every push: builds the image, starts it on a fresh stack, runs `make check`, keeps the sign-in screenshots; on `main` it then publishes the tested image to Docker Hub |
 | `blueprints/mossyleaf-accounts.yaml` | Sign-in, recovery and password-change flows, invitation email, password policy, brand |
-| `blueprints/mossyleaf-apps.yaml` | Groups `mossydew` / `mossytrunk`, their OIDC providers and applications, group bindings, `zoneinfo` claim |
+| `blueprints/mossyleaf-apps.yaml` | Groups `mossydew` / `mossytrunk`, their OIDC providers and applications, group bindings, `zoneinfo` and `mossytrunk_workspace` claims |
 | `branding/` | Logo, favicon, background, `branding.css` (the brand's custom CSS) and self-hosted fonts, served at `/static/dist/custom/` |
 | `templates/email/` | Invitation and password-reset emails (HTML + text, French or English from the user's locale) |
 | `scripts/invite.py` | Creates or updates a user, adds groups and emails the invitation (run by `make invite`) |
@@ -74,6 +74,7 @@ Userinfo (and ID token) claims, as observed locally:
 - `sub` is a hash of the user id and the install's identifier: stable, identical in every app, kept by a database restore (a brand-new install gives new values). Use it as the account key, not the email (users can change their email).
 - `email_verified` is always `false` with Authentik's default mapping, even though every account proved its email by choosing its password from an emailed link.
 - `zoneinfo` comes from the user attribute `timezone` (set by `make invite`, editable in the admin user form); absent when unset.
+- MossyTrunk also receives `mossytrunk_workspace`, from the user attribute of the same name (`make invite … WORKSPACE="Atelier Mousse"`, editable in the admin user form): the workspace their first MossyTrunk sign-in joins. Absent when unset, and MossyTrunk then opens a workspace of their own.
 - A user outside the app's group gets Authentik's "Permission denied" page and the app never receives a code.
 
 Logout (RP-initiated): redirect the browser to `/application/o/<slug>/end-session/?id_token_hint=<id token>&post_logout_redirect_uri=https://<app host>/&state=<optional>`. `id_token_hint` is **required** whenever `post_logout_redirect_uri` is sent (Authentik answers "invalid request" otherwise), and the URI must be one of the registered post-logout URIs above. It signs the user out of Authentik too (the next sign-in asks for the password again), then redirects to `post_logout_redirect_uri?state=…`. Without `post_logout_redirect_uri` the user ends on the sign-in page.
